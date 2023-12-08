@@ -1,45 +1,89 @@
-version: '3'
+version: "3.8"
+
+#comando para usar
+#command: bundle exec rails db:chatwoot_prepare
+#mais infomacoes como fazer o deploy em: youtube.com/@aprendanawebbr
 
 services:
-  base: &base
+  #serviço principal do front chatwoot
+  chatwoot_app:
     image: chatwoot/chatwoot:latest
-    env_file: .env ## Change this file for customized env variables
-    volumes:
-      - storage_volume:/app/storage
-
-  rails:
-    <<: *base
-    depends_on:
-      - redis
-    ports:
-      - '127.0.0.1:3000:3000'
-    environment:
-      - NODE_ENV=production
-      - RAILS_ENV=production
-      - INSTALLATION_ENV=docker
+    command: bundle exec rails s -p 3000 -b 0.0.0.0
     entrypoint: docker/entrypoints/rails.sh
-    command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
-
-  sidekiq:
-    <<: *base
-    depends_on:
-      - redis
-    environment:
-      - NODE_ENV=production
-      - RAILS_ENV=production
-      - INSTALLATION_ENV=docker
-    command: ['bundle', 'exec', 'sidekiq', '-C', 'config/sidekiq.yml']
-
-  redis:
-    image: redis:alpine
-    restart: always
-    command: ["sh", "-c", "redis-server --requirepass \"$REDIS_PASSWORD\""]
-    env_file: .env
     volumes:
-      - redis_volume:/data
-    ports:
-      - '127.0.0.1:6379:6379'
+      - chatwoot_data:/app/storage
+    networks:
+      - app_network
+    environment:
+      INSTALLATION_NAME: cahost
+      NODE_ENV: production
+      RAILS_ENV: production
+      INSTALLATION_ENV: docker
+      SECRET_KEY_BASE: minhakeycaralho
+      FRONTEND_URL: https://server2.cahost.com.br:3000
+      DEFAULT_LOCALE: pt_BR
+      FORCE_SSL: "true"
+      ENABLE_ACCOUNT_SIGNUP: "false"
+      REDIS_URL: redis://redis:6379
+      # Banco de dados
+      POSTGRES_HOST: server2.cahost.com.br
+      POSTGRES_USERNAME: cahostbr_chatwoot
+      POSTGRES_PASSWORD: c1a2i9o5
+      POSTGRES_DATABASE: cahostbr_chatwoot
+      # Armazenamento
+      ACTIVE_STORAGE_SERVICE: local
+      # logs
+      RAILS_LOG_TO_STDOUT: "true"
+      # Avatar Bot
+      USE_INBOX_AVATAR_FOR_BOT: "true"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+  #worker
+  chatwoot_worker:
+    image: chatwoot/chatwoot:latest
+    command: bundle exec sidekiq -C config/sidekiq.yml
+    volumes:
+      - chatwoot_data:/app/storage
+    networks:
+      - app_network
+    environment:
+      INSTALLATION_NAME: cahost
+      NODE_ENV: production
+      RAILS_ENV: production
+      INSTALLATION_ENV: docker
+      SECRET_KEY_BASE: minhakeycaralho
+      FRONTEND_URL: https://server2.cahost.com.br:3000
+      DEFAULT_LOCALE: pt_BR
+      FORCE_SSL: "true"
+      ENABLE_ACCOUNT_SIGNUP: "false"
+      REDIS_URL: redis://redis:6379
+      # Banco de dados
+      POSTGRES_HOST: server2.cahost.com.br
+      POSTGRES_USERNAME: cahostbr_chatwoot
+      POSTGRES_PASSWORD: c1a2i9o5
+      POSTGRES_DATABASE: cahostbr_chatwoot
+      # Armazenamento
+      ACTIVE_STORAGE_SERVICE: local
+      # logs
+      RAILS_LOG_TO_STDOUT: "true"
+      # Avatar Bot
+      USE_INBOX_AVATAR_FOR_BOT: "true"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
 
 volumes:
-  storage_volume:
-  redis_volume:
+  chatwoot_data:
+    external: true
+
+networks:
+  app_network:
+    external: true
